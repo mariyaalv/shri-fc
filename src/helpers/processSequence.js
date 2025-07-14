@@ -11,16 +11,19 @@
  */
 
 import Api from "../tools/api";
-import { length, test } from "ramda";
+import { length, test, pipeWith, tap } from "ramda";
 
 const api = new Api();
 
 // Валидация исходной строки
-const longerThanTwo = (str) => length(str) > 2;
-const shorterThanTen = (str) => length(str) < 10;
-const isNumberOrDot = test(/^[0-9]+(?:\.[0-9]+)?$/);
 const validateString = (value) =>
-  longerThanTwo(value) && shorterThanTen(value) && isNumberOrDot(value);
+  length(value) > 2 &&
+  length(value) < 10 &&
+  test(/^[0-9]+(?:\.[0-9]+)?$/)(value);
+const throwIfInvalid = (val) => {
+  if (!validateString(val)) throw "ValidationError";
+  return val;
+};
 
 // Преобразования
 const strToRoundedNumber = (value) => Math.round(parseFloat(value));
@@ -34,46 +37,33 @@ const getRemainder = (num) => num % 3;
 const fetchAnimal = (id) =>
   api.get(`https://animals.tech/${id}`, {}).then(({ result }) => result);
 
-// Главная функция
+// Основной pipeline через Ramda.pipeWith для промисов
+const pipeline = (writeLog) =>
+  pipeWith(
+    (fn, res) => Promise.resolve(res).then(fn),
+    [
+      tap(writeLog), // лог исходного значения
+      throwIfInvalid, // валидация
+      tap(writeLog), // лог после валидации
+      strToRoundedNumber,
+      tap(writeLog), // лог числа
+      convertToBinary,
+      tap(writeLog), // лог бинарной строки
+      getLength,
+      tap(writeLog), // лог длины
+      square,
+      tap(writeLog), // лог квадрата
+      getRemainder,
+      tap(writeLog), // лог остатка
+      fetchAnimal, // получение животного
+    ]
+  );
+
 const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
-  // Асинхронная цепочка через Promise.resolve
-  Promise.resolve(value)
-    .then((val) => {
-      writeLog(val);
-      // Валидация
-      if (!validateString(val)) throw "ValidationError";
-      return val;
-    })
-    .then(strToRoundedNumber)
-    .then((num) => {
-      writeLog(num);
-      return num;
-    })
-    .then(convertToBinary)
-    .then((bin) => {
-      writeLog(bin);
-      return bin;
-    })
-    .then(getLength)
-    .then((len) => {
-      writeLog(len);
-      return len;
-    })
-    .then(square)
-    .then((sq) => {
-      writeLog(sq);
-      return sq;
-    })
-    .then(getRemainder)
-    .then((rem) => {
-      writeLog(rem);
-      return rem;
-    })
-    .then(fetchAnimal)
+  pipeline(writeLog)(value)
     .then(handleSuccess)
     .catch((err) => {
-      if (err === "ValidationError") handleError("ValidationError");
-      else handleError(err);
+      handleError(err === "ValidationError" ? "ValidationError" : err);
     });
 };
 
