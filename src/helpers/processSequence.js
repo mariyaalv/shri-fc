@@ -1,51 +1,80 @@
 /**
  * @file Домашка по FP ч. 2
  *
- * Подсказки:
- * Метод get у инстанса Api – каррированый
- * GET / https://animals.tech/{id}
+ * Составляем цепочку синхронных и асинхронных действий для обработки строки-числа.
+ * API:
+ *   GET https://api.tech/numbers/base?number={number}&from=10&to=2 — конвертация
+ *   GET https://animals.tech/{id} — получение животного по id
  *
- * GET / https://api.tech/numbers/base
- * params:
- * – number [Int] – число
- * – from [Int] – из какой системы счисления
- * – to [Int] – в какую систему счисления
- *
- * Иногда промисы от API будут приходить в состояние rejected, (прямо как и API в реальной жизни)
- * Ответ будет приходить в поле {result}
+ * В случае ошибок валидации — handleError('ValidationError'),
+ * при успешном завершении — handleSuccess(result).
  */
- import Api from '../tools/api';
 
- const api = new Api();
+import Api from "../tools/api";
+import { length, test } from "ramda";
 
- /**
-  * Я – пример, удали меня
-  */
- const wait = time => new Promise(resolve => {
-     setTimeout(resolve, time);
- })
+const api = new Api();
 
- const processSequence = ({value, writeLog, handleSuccess, handleError}) => {
-     /**
-      * Я – пример, удали меня
-      */
-     writeLog(value);
+// Валидация исходной строки
+const longerThanTwo = (str) => length(str) > 2;
+const shorterThanTen = (str) => length(str) < 10;
+const isNumberOrDot = test(/^[0-9]+(?:\.[0-9]+)?$/);
+const validateString = (value) =>
+  longerThanTwo(value) && shorterThanTen(value) && isNumberOrDot(value);
 
-     api.get('https://api.tech/numbers/base', {from: 2, to: 10, number: '01011010101'}).then(({result}) => {
-         writeLog(result);
-     });
+// Преобразования
+const strToRoundedNumber = (value) => Math.round(parseFloat(value));
+const convertToBinary = (num) =>
+  api
+    .get("https://api.tech/numbers/base", { from: 10, to: 2, number: num })
+    .then(({ result }) => result);
+const getLength = (str) => str.length;
+const square = (num) => num * num;
+const getRemainder = (num) => num % 3;
+const fetchAnimal = (id) =>
+  api.get(`https://animals.tech/${id}`, {}).then(({ result }) => result);
 
-     wait(2500).then(() => {
-         writeLog('SecondLog')
-
-         return wait(1500);
-     }).then(() => {
-         writeLog('ThirdLog');
-
-         return wait(400);
-     }).then(() => {
-         handleSuccess('Done');
-     });
- }
+// Главная функция
+const processSequence = ({ value, writeLog, handleSuccess, handleError }) => {
+  // Асинхронная цепочка через Promise.resolve
+  Promise.resolve(value)
+    .then((val) => {
+      writeLog(val);
+      // Валидация
+      if (!validateString(val)) throw "ValidationError";
+      return val;
+    })
+    .then(strToRoundedNumber)
+    .then((num) => {
+      writeLog(num);
+      return num;
+    })
+    .then(convertToBinary)
+    .then((bin) => {
+      writeLog(bin);
+      return bin;
+    })
+    .then(getLength)
+    .then((len) => {
+      writeLog(len);
+      return len;
+    })
+    .then(square)
+    .then((sq) => {
+      writeLog(sq);
+      return sq;
+    })
+    .then(getRemainder)
+    .then((rem) => {
+      writeLog(rem);
+      return rem;
+    })
+    .then(fetchAnimal)
+    .then(handleSuccess)
+    .catch((err) => {
+      if (err === "ValidationError") handleError("ValidationError");
+      else handleError(err);
+    });
+};
 
 export default processSequence;
